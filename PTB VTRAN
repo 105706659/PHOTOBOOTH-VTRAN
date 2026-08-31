@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cabina — Photobooth</title>
+<!-- Thêm thư viện tải ảnh -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --ink:#15121a;
+    --ink-2:#1f1a26;
+    --amber:#f2a93b;
+    --flash:#e8583a;
+    --paper:#f4ecd8;
+    --teal:#2b6e6b;
+    --line: rgba(244,236,216,0.14);
+    --font-display: 'Anton', 'Arial Narrow', sans-serif;
+    --font-body: 'Space Grotesk', 'Segoe UI', sans-serif;
+    --font-mono: 'DM Mono', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,body{
+    margin:0; padding:0; min-height:100vh;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(242,169,59,0.10), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(43,110,107,0.14), transparent 45%),
+      var(--ink);
+    color: var(--paper);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* film grain texture */
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index: 500;
+    opacity:0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .app{
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  /* ---------- marquee header ---------- */
+  header.marquee{
+    display:flex; align-items:center; justify-content:space-between;
+    padding-bottom: 18px; margin-bottom: 30px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand{
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .brand .bulb{
+    width:10px; height:10px; border-radius:50%;
+    background: var(--flash);
+    box-shadow: 0 0 10px 3px rgba(232,88,58,0.65);
+    animation: blink 2.6s infinite ease-in-out;
+  }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+  .brand h1{
+    font-family: var(--font-display);
+    font-weight:400;
+    font-size: clamp(28px, 5vw, 40px);
+    letter-spacing: 0.5px;
+    margin:0;
+    text-transform: uppercase;
+  }
+  .brand h1 span{ color: var(--amber); }
+  .tagline{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(244,236,216,0.5);
+  }
+  .coin{
+    font-family: var(--font-mono);
+    font-size:11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(244,236,216,0.55);
+    text-align:right;
+  }
+  .coin b{ color: var(--amber); font-size:14px; display:block; }
+
+  /* ---------- screens ---------- */
+  .screen{ display:none; }
+  .screen.active{ display:block; animation: rise .5s ease; }
+  @keyframes rise{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+
+  /* start screen */
+  .start-grid{
+    display:grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 40px;
+    align-items:center;
+  }
+  @media (max-width: 760px){ .start-grid{ grid-template-columns:1fr; } }
+
+  .start-copy h2{
+    font-family: var(--font-display);
+    font-weight:400;
+    text-transform: uppercase;
+    font-size: clamp(30px, 6vw, 54px);
+    line-height: 0.95;
+    margin: 0 0 18px;
+  }
+  .start-copy h2 em{
+    font-style:normal; color: var(--amber);
+  }
+  .start-copy p{
+    color: rgba(244,236,216,0.68);
+    line-height:1.6;
+    max-width: 46ch;
+    margin-bottom: 26px;
+  }
+
+  .strip-select{
+    display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 26px;
+  }
+  .strip-select button{
+    font-family: var(--font-mono);
+    font-size:12px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    background: transparent;
+    border:1px solid var(--line);
+    color: rgba(244,236,216,0.75);
+    padding: 10px 14px;
+    border-radius: 3px;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .strip-select button.on{
+    border-color: var(--amber);
+    color: var(--ink);
+    background: var(--amber);
+    font-weight:600;
+  }
+
+  .btn-primary{
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 17px;
+    background: var(--flash);
+    color: var(--paper);
+    border: none;
+    padding: 16px 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #a53a25, 0 8px 18px rgba(0,0,0,0.35);
+    transition: transform .1s ease;
+  }
+  .btn-primary:active{ transform: translateY(4px); box-shadow: 0 2px 0 #a53a25; }
+  .btn-primary:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  .btn-ghost{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    background: transparent;
+    color: rgba(244,236,216,0.7);
+    border: 1px solid var(--line);
+    padding: 13px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .btn-ghost:hover{ border-color: rgba(244,236,216,0.4); color:var(--paper); }
+
+  .curtain-frame{
+    position:relative;
+    border-radius: 8px;
+    padding: 14px;
+    background: linear-gradient(180deg, #241d2c, #17131c);
+    border: 1px solid var(--line);
+  }
+  .curtain-frame::before, .curtain-frame::after{
+    content:"";
+    position:absolute; top:6px; bottom:6px; width:14px;
+    background-image: repeating-linear-gradient(180deg, transparent 0 4px, rgba(0,0,0,0.4) 4px 6px);
+    background-color: #0d0a11;
+    border-radius:3px;
+  }
+  .curtain-frame::before{ left:6px; }
+  .curtain-frame::after{ right:6px; }
+  .curtain-inner{
+    margin: 0 26px;
+    aspect-ratio: 4/5;
+    background: #000;
+    border-radius: 4px;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    position:relative;
+  }
+  .curtain-inner img{ width:100%; height:100%; object-fit:cover; opacity:0.85; }
+  .curtain-caption{
+    position:absolute; bottom:10px; left:0; right:0; text-align:center;
+    font-family: var(--font-mono); font-size:10px; letter-spacing:0.15em;
+    text-transform:uppercase; color: rgba(244,236,216,0.55);
+  }
+
+  /* capture screen */
+  .booth{
+    display:grid;
+    grid-template-columns: 1fr 240px;
+    gap: 26px;
+  }
+  @media (max-width: 760px){ .booth{ grid-template-columns: 1fr; } }
+
+  .stage{
+    position:relative;
+    border-radius: 10px;
+    overflow:hidden;
+    background:#000;
+    border: 1px solid var(--line);
+    aspect-ratio: 4/3;
+  }
+  .stage video, .stage canvas.freeze{
+    width:100%; height:100%; object-fit:cover;
+    display:block;
+    transform: scaleX(-1); /* mirror */
+  }
+  .stage canvas.freeze{ position:absolute; inset:0; }
+
+  .flash-overlay{
+    position:absolute; inset:0; background:#fff; opacity:0;
+    pointer-events:none;
+  }
+  .flash-overlay.pop{ animation: flashpop .35s ease-out; }
+  @keyframes flashpop{ 0%{opacity:0.95;} 100%{opacity:0;} }
+
+  .countdown-num{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-display);
+    font-size: 140px;
+    color: #fff;
+    text-shadow: 0 0 30px rgba(0,0,0,0.6);
+    opacity:0;
+    pointer-events:none;
+  }
+  .countdown-num.show{ animation: countpulse .9s ease-out; }
+  @keyframes countpulse{
+    0%{ opacity:0; transform: scale(1.4); }
+    20%{ opacity:1; transform: scale(1); }
+    80%{ opacity:1; }
+    100%{ opacity:0; transform: scale(0.9); }
+  }
+
+  .shot-badge{
+    position:absolute; top:12px; left:12px;
+    font-family: var(--font-mono); font-size:11px;
+    background: rgba(21,18,26,0.75);
+    border: 1px solid var(--line);
+    padding: 6px 10px; border-radius: 20px;
+    letter-spacing: 0.08em;
+  }
+  .shot-badge b{ color: var(--amber); }
+
+  .rec-dot{
+    display:inline-block; width:7px; height:7px; border-radius:50%;
+    background: var(--flash); margin-right:6px;
+    animation: blink 1.4s infinite;
+  }
+
+  .side-panel{ display:flex; flex-direction:column; gap: 18px; }
+  .panel-block{
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    background: rgba(244,236,216,0.03);
+  }
+  .panel-block h3{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(244,236,216,0.55);
+    margin: 0 0 12px;
+  }
+  .filter-list{ display:flex; flex-direction:column; gap:8px; }
+  .filter-list button{
+    text-align:left;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: rgba(244,236,216,0.8);
+    padding: 9px 12px;
+    border-radius: 4px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .filter-list button.on{
+    border-color: var(--teal);
+    background: rgba(43,110,107,0.18);
+    color: var(--paper);
+  }
+  .filter-list button .swatch{
+    width:16px; height:16px; border-radius:50%;
+    border:1px solid rgba(244,236,216,0.3);
+  }
+
+  .thumbs{
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:6px;
+  }
+  .thumbs .t{
+    aspect-ratio: 4/3;
+    border-radius:4px;
+    background: rgba(0,0,0,0.4);
+    border: 1px dashed var(--line);
+    overflow:hidden;
+  }
+  .thumbs .t img{ width:100%; height:100%; object-fit:cover; }
+
+  .capture-cta{ width:100%; }
+
+  /* review screen */
+  .review-grid{
+    display:grid;
+    grid-template-columns: 320px 1fr;
+    gap: 40px;
+    align-items:start;
+  }
+  @media (max-width: 760px){ .review-grid{ grid-template-columns:1fr; } }
+
+  #screen-frame > div > div:first-child{
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 760px){
+    #screen-frame > div > div:first-child{
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  #printArea{
+    background: var(--paper);
+    padding: 14px 14px 20px;
+    border-radius: 3px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+    width: 260px;
+    margin: 0 auto;
+  }
+  .strip-photo{
+    width:100%;
+    display:block;
+    border-radius: 1px;
+    margin-bottom: 10px;
+  }
+  .strip-photo:last-of-type{ margin-bottom:0; }
+  .strip-footer{
+    text-align:center;
+    font-family: var(--font-display);
+    letter-spacing: 0.08em;
+    color: #1a1a1a;
+    font-size: 13px;
+    margin-top: 12px;
+    text-transform: uppercase;
+  }
+  .strip-footer .dateline{
+    display:block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: #6b6b6b;
+    margin-top: 3px;
+    text-transform:none;
+  }
+
+  .review-actions{ display:flex; flex-direction:column; gap:14px; max-width: 380px; }
+  .review-actions .row{ display:flex; gap:12px; }
+  .review-note{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(244,236,216,0.5);
+    line-height:1.7;
+    border-left: 2px solid var(--teal);
+    padding-left: 12px;
+  }
+
+  footer.stub{
+    margin-top: 46px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--line);
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(244,236,216,0.35);
+  }
+
+  .hidden{ display:none !important; }
+
+  /* frame customizer */
+  #framePreview{
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
+  }
+
+  #frameEventName, #frameEventDesc, #frameEventYear{
+    color: var(--paper) !important;
+  }
+  
+  #frameEventName::placeholder, #frameEventDesc::placeholder, #frameEventYear::placeholder{
+    color: rgba(244,236,216,0.4);
+  }
+
+  /* ---------- PRINT ---------- */
+  @media print{
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{
+      position: fixed; top:0; left:0;
+      width: 2in; /* classic photo strip width */
+      box-shadow:none;
+      margin:0;
+      padding: 0.08in 0.08in 0.14in;
+    }
+    @page{ size: 2in 6in; margin:0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="marquee">
+    <div class="brand">
+      <span class="bulb"></span>
+      <h1>Cabin<span>a</span></h1>
+    </div>
+    <div class="coin">
+      <b id="clock">--:--</b>
+      photobooth co.
+    </div>
+  </header>
+
+  <!-- SCREEN 1: START -->
+  <section class="screen active" id="screen-start">
+    <div class="start-grid">
+      <div class="start-copy">
+        <p class="tagline">Bước vào cabin, gương mặt lên khung</p>
+        <h2>Chụp <em>4</em> khoảnh khắc<br>trong một dải phim.</h2>
+        <p>Nhấn máy, tạo dáng theo hiệu lệnh đếm ngược, rồi mang về một dải ảnh in nóng hổi — như quầy photobooth ngoài phố.</p>
+
+        <div class="strip-select" id="shotCountSelect">
+          <button data-count="3">3 khung</button>
+          <button data-count="4" class="on">4 khung</button>
+          <button data-count="6">6 khung</button>
+        </div>
+
+        <button class="btn-primary" id="btnStart">Mở cabin →</button>
+        <p style="margin-top:14px; font-family:var(--font-mono); font-size:11px; color:rgba(244,236,216,0.4);" id="camHint">Cabina sẽ xin quyền dùng camera của bạn.</p>
+      </div>
+
+      <div class="curtain-frame">
+        <div class="curtain-inner">
+          <img id="startPreviewImg" src="" alt="" style="display:none;">
+          <div id="startPreviewPlaceholder" style="font-family:var(--font-mono); font-size:11px; color:rgba(244,236,216,0.35); text-align:center; padding:20px;">
+            màn hình cabin<br>đang chờ ánh sáng
+          </div>
+          <div class="curtain-caption">ẢNH MẪU SẼ HIỆN Ở ĐÂY</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: CAPTURE -->
+  <section class="screen" id="screen-capture">
+    <div class="booth">
+      <div class="stage" id="stage">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="flash-overlay" id="flashOverlay"></div>
+        <div class="countdown-num" id="countdownNum">3</div>
+        <div class="shot-badge"><span class="rec-dot"></span>Khung <b id="shotIndex">1</b> / <span id="shotTotal">4</span></div>
+      </div>
+
+      <div class="side-panel">
+        <div class="panel-block">
+          <h3>Bộ lọc</h3>
+          <div class="filter-list" id="filterList">
+            <button data-filter="none" class="on"><span>Nguyên bản</span><span class="swatch" style="background:#999"></span></button>
+            <button data-filter="mono"><span>Đen trắng</span><span class="swatch" style="background:#555"></span></button>
+            <button data-filter="warm"><span>Ấm hoài cổ</span><span class="swatch" style="background:#c98a45"></span></button>
+            <button data-filter="cool"><span>Lạnh xanh</span><span class="swatch" style="background:#3d7a8c"></span></button>
+            <button data-filter="high"><span>Tương phản cao</span><span class="swatch" style="background:#2a2a2a"></span></button>
+            <button data-filter="blur"><span>Mờ mịn</span><span class="swatch" style="background:#aaa"></span></button>
+            <button data-filter="bright"><span>Sáng rõ</span><span class="swatch" style="background:#fff"></span></button>
+            <button data-filter="dark"><span>Tối huyền</span><span class="swatch" style="background:#1a1a1a"></span></button>
+            <button data-filter="sepia"><span>Sepia cổ</span><span class="swatch" style="background:#8b6f47"></span></button>
+            <button data-filter="invert"><span>Đảo màu</span><span class="swatch" style="background:#66f"></span></button>
+            <button data-filter="saturate"><span>Bão hoà cao</span><span class="swatch" style="background:#f33"></span></button>
+            <button data-filter="cool2"><span>Lạnh tím</span><span class="swatch" style="background:#5a4a9e"></span></button>
+            <button data-filter="retro"><span>Retro phim</span><span class="swatch" style="background:#8b7355"></span></button>
+            <button data-filter="vivid"><span>Sống động</span><span class="swatch" style="background:#f60"></span></button>
+            <button data-filter="dreamy"><span>Mơ màng</span><span class="swatch" style="background:#d4a5d4"></span></button>
+          </div>
+        </div>
+
+        <div class="panel-block">
+          <h3>Đã chụp</h3>
+          <div class="thumbs" id="thumbs"></div>
+        </div>
+
+        <button class="btn-primary capture-cta" id="btnCapture">Chụp ngay 📸</button>
+        <button class="btn-ghost" id="btnCancelBooth">Thoát cabin</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 2B: FRAME CUSTOMIZER -->
+  <section class="screen" id="screen-frame">
+    <div style="max-width:800px; margin:0 auto;">
+      <h2 style="font-family:var(--font-display); text-transform:uppercase; font-size:28px; margin:0 0 24px;">Thiết kế frame</h2>
+      
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:start;">
+        <!-- Settings -->
+        <div>
+          <div class="panel-block">
+            <h3>Màu nền</h3>
+            <div class="filter-list" id="frameColorList">
+              <button data-color="#e63946" class="on"><span style="color:#fff;">Đỏ Swinburne</span><span class="swatch" style="background:#e63946"></span></button>
+              <button data-color="#1d3557"><span>Navy</span><span class="swatch" style="background:#1d3557"></span></button>
+              <button data-color="#ff6b9d"><span style="color:#fff;">Hồng sáng</span><span class="swatch" style="background:#ff6b9d"></span></button>
+              <button data-color="#27272a"><span>Đen Xám</span><span class="swatch" style="background:#27272a"></span></button>
+              <button data-color="#0d9488"><span>Teal</span><span class="swatch" style="background:#0d9488"></span></button>
+            </div>
+          </div>
+
+          <div class="panel-block" style="margin-top:18px;">
+            <h3>Thông tin sự kiện</h3>
+            <input type="text" id="frameEventName" placeholder="Swinburne Vietnam" style="width:100%; padding:10px; border:1px solid var(--line); border-radius:4px; background:transparent; color:var(--paper); font-family:var(--font-body); margin-bottom:12px;">
+            <input type="text" id="frameEventDesc" placeholder="K7 Students" style="width:100%; padding:10px; border:1px solid var(--line); border-radius:4px; background:transparent; color:var(--paper); font-family:var(--font-body); margin-bottom:12px;">
+            <input type="text" id="frameEventYear" placeholder="2026" style="width:100%; padding:10px; border:1px solid var(--line); border-radius:4px; background:transparent; color:var(--paper); font-family:var(--font-body);">
+          </div>
+
+          <div class="panel-block" style="margin-top:18px;">
+            <h3>Logo</h3>
+            <div class="filter-list">
+              <button data-logo="life" class="on"><span>Swinburne & SaoV</span></button>
+              <button data-logo="none"><span>Không có logo</span></button>
+            </div>
+          </div>
+
+          <button class="btn-primary" id="btnApplyFrame" style="width:100%; margin-top:18px;">Áp dụng frame</button>
+        </div>
+
+        <!-- Preview -->
+        <div style="border:1px solid var(--line); border-radius:8px; padding:14px; background:rgba(244,236,216,0.03);">
+          <div id="framePreview" style="width:100%; aspect-ratio:2/3; border:3px solid rgba(244,236,216,0.2); border-radius:4px; background:#e63946; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+            <div style="text-align:center; color:#fff; font-family:var(--font-display); font-size:18px; z-index:1;">
+              <div id="framePreviewTitle">Swinburne Vietnam</div>
+              <div style="font-size:12px; margin-top:8px;">K7 Students</div>
+            </div>
+          </div>
+          <p style="font-family:var(--font-mono); font-size:11px; color:rgba(244,236,216,0.5); margin-top:12px;">Preview khung ảnh. Logo sẽ hiện ở góc dưới khi in.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: REVIEW / PRINT -->
+  <section class="screen" id="screen-review">
+    <div class="review-grid">
+      <div id="printArea">
+        <!-- strip photos injected here -->
+        <div class="strip-footer" id="stripFooter">CABINA <span class="dateline" id="stripDate"></span></div>
+      </div>
+
+      <div class="review-actions">
+        <h2 style="font-family:var(--font-display); text-transform:uppercase; font-size:28px; margin:0;">Dải ảnh của bạn</h2>
+        <p style="color:rgba(244,236,216,0.65); line-height:1.6;">Xem lại trước khi in. Có thể chụp lại toàn bộ nếu chưa ưng ý.</p>
+
+        <div class="row">
+          <button class="btn-primary" id="btnPrint" style="flex:1;">In ảnh 🖨️</button>
+          <button class="btn-ghost" id="btnDownload" style="flex:1;">Tải PNG</button>
+        </div>
+        <div class="row">
+          <button class="btn-ghost" id="btnEditFrame" style="flex:1;">Sửa frame</button>
+          <button class="btn-ghost" id="btnRetake" style="flex:1;">Chụp lại</button>
+        </div>
+
+        <div class="review-note">
+          Mẹo in: nếu dùng máy in ảnh khổ 2×6" (như DNP, Canon Selphy dải), chọn khổ giấy tương ứng trong hộp thoại in để có kết quả sát viền nhất.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="stub">
+    <span>est. 2026 · one booth, one strip</span>
+    <span id="footShots">0 khung đã lưu</span>
+  </footer>
+</div>
+
+<canvas id="workCanvas" class="hidden"></canvas>
+
+<script>
+(function(){
+  const state = {
+    shotCount: 4,
+    filter: 'none',
+    shots: [],       // dataURLs of captured, filtered images
+    stream: null,
+    frame: {
+      color: '#e63946',
+      eventName: 'Swinburne Vietnam',
+      eventDesc: 'K7 Students',
+      eventYear: '2026',
+      logo: 'life',
+      date: ''
+    }
+  };
+
+  const FILTER_CSS = {
+    none: 'none',
+    mono: 'grayscale(1) contrast(1.05)',
+    warm: 'sepia(0.35) saturate(1.3) contrast(1.05)',
+    cool: 'saturate(1.1) hue-rotate(-12deg) contrast(1.05) brightness(1.02)',
+    high: 'contrast(1.35) saturate(1.15)',
+    blur: 'blur(4px)',
+    bright: 'brightness(1.25) contrast(0.95)',
+    dark: 'brightness(0.75) contrast(1.15)',
+    sepia: 'sepia(0.6) saturate(1.2)',
+    invert: 'invert(1)',
+    saturate: 'saturate(2) hue-rotate(15deg)',
+    cool2: 'hue-rotate(-25deg) saturate(1.15) contrast(1.08)',
+    retro: 'sepia(0.5) hue-rotate(-10deg) saturate(0.9)',
+    vivid: 'contrast(1.4) saturate(1.5) hue-rotate(5deg)',
+    dreamy: 'blur(2px) brightness(1.15) saturate(0.8)',
+  };
+
+  // ---- clock ----
+  function tickClock(){
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    document.getElementById('clock').textContent = hh + ':' + mm;
+  }
+  tickClock(); setInterval(tickClock, 15000);
+
+  // ---- screen switch ----
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ---- shot count selector ----
+  document.querySelectorAll('#shotCountSelect button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#shotCountSelect button').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      state.shotCount = parseInt(btn.dataset.count, 10);
+    });
+  });
+
+  // ---- filter selector ----
+  document.querySelectorAll('#filterList button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#filterList button').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      state.filter = btn.dataset.filter;
+      const video = document.getElementById('video');
+      video.style.filter = FILTER_CSS[state.filter];
+    });
+  });
+
+  // ---- camera ----
+  const video = document.getElementById('video');
+  const camHint = document.getElementById('camHint');
+
+  async function openCamera(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
+        audio: false
+      });
+      state.stream = stream;
+      video.srcObject = stream;
+      return true;
+    }catch(err){
+      camHint.textContent = 'Không thể mở camera: ' + (err.message || 'quyền bị từ chối') + '. Hãy cấp quyền camera cho trình duyệt rồi thử lại.';
+      camHint.style.color = '#e8583a';
+      return false;
+    }
+  }
+
+  function stopCamera(){
+    if(state.stream){
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
+    }
+  }
+
+  // ---- start booth ----
+  document.getElementById('btnStart').addEventListener('click', async ()=>{
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnStart').textContent = 'Đang mở camera…';
+    const ok = await openCamera();
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStart').textContent = 'Mở cabin →';
+    if(!ok) return;
+
+    state.shots = [];
+    renderThumbs();
+    document.getElementById('shotTotal').textContent = state.shotCount;
+    document.getElementById('shotIndex').textContent = '1';
+    showScreen('screen-capture');
+  });
+
+  document.getElementById('btnCancelBooth').addEventListener('click', ()=>{
+    stopCamera();
+    showScreen('screen-start');
+  });
+
+  // ---- capture sequence ----
+  const btnCapture = document.getElementById('btnCapture');
+  const countdownEl = document.getElementById('countdownNum');
+  const flashEl = document.getElementById('flashOverlay');
+  const workCanvas = document.getElementById('workCanvas');
+
+  function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+  async function runCountdown(){
+    for(const n of [3,2,1]){
+      countdownEl.textContent = n;
+      countdownEl.classList.remove('show');
+      void countdownEl.offsetWidth; // restart animation
+      countdownEl.classList.add('show');
+      await sleep(800);
+    }
+  }
+
+  function grabFrame(){
+    const w = video.videoWidth || 1280;
+    const h = video.videoHeight || 960;
+    workCanvas.width = w;
+    workCanvas.height = h;
+    const ctx = workCanvas.getContext('2d');
+    ctx.filter = FILTER_CSS[state.filter];
+    // mirror to match preview
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, w, h);
+    return workCanvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function renderThumbs(){
+    const wrap = document.getElementById('thumbs');
+    wrap.innerHTML = '';
+    for(let i=0;i<state.shotCount;i++){
+      const cell = document.createElement('div');
+      cell.className = 't';
+      if(state.shots[i]){
+        const img = document.createElement('img');
+        img.src = state.shots[i];
+        cell.appendChild(img);
+      }
+      wrap.appendChild(cell);
+    }
+    document.getElementById('footShots').textContent = state.shots.length + ' khung đã lưu';
+  }
+
+  btnCapture.addEventListener('click', async ()=>{
+    if(btnCapture.disabled) return;
+    btnCapture.disabled = true;
+    btnCapture.textContent = 'Chuẩn bị…';
+
+    await runCountdown();
+
+    flashEl.classList.remove('pop');
+    void flashEl.offsetWidth;
+    flashEl.classList.add('pop');
+
+    const dataUrl = grabFrame();
+    state.shots.push(dataUrl);
+    renderThumbs();
+
+    if(state.shots.length >= state.shotCount){
+      await sleep(400);
+      stopCamera();
+      buildStrip();
+      showScreen('screen-frame');
+      btnCapture.disabled = false;
+      btnCapture.textContent = 'Chụp ngay 📸';
+      return;
+    }
+
+    document.getElementById('shotIndex').textContent = state.shots.length + 1;
+    await sleep(500);
+    btnCapture.disabled = false;
+    btnCapture.textContent = 'Chụp ngay 📸';
+  });
+
+  // ---- build print strip (without frame) ----
+  function buildStrip(){
+    const d = new Date();
+    state.frame.date = d.toLocaleDateString('vi-VN') + ' · ' + d.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('stripDate').textContent = state.frame.date;
+  }
+
+  // ---- frame customizer ----
+  const frameColorList = document.getElementById('frameColorList');
+  const frameEventName = document.getElementById('frameEventName');
+  const frameEventDesc = document.getElementById('frameEventDesc');
+  const frameEventYear = document.getElementById('frameEventYear');
+  const framePreview = document.getElementById('framePreview');
+  const framePreviewTitle = document.getElementById('framePreviewTitle');
+
+  frameColorList.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      frameColorList.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      state.frame.color = btn.dataset.color;
+      framePreview.style.background = state.frame.color;
+    });
+  });
+
+  frameEventName.value = state.frame.eventName;
+  frameEventDesc.value = state.frame.eventDesc;
+  frameEventYear.value = state.frame.eventYear;
+
+  frameEventName.addEventListener('input', (e)=>{
+    state.frame.eventName = e.target.value || 'Swinburne Vietnam';
+    framePreviewTitle.textContent = state.frame.eventName;
+  });
+
+  frameEventDesc.addEventListener('input', (e)=>{
+    state.frame.eventDesc = e.target.value || 'K7 Students';
+    framePreviewTitle.nextElementSibling.textContent = state.frame.eventDesc;
+  });
+
+  frameEventYear.addEventListener('input', (e)=>{
+    state.frame.eventYear = e.target.value || '2026';
+  });
+
+  document.querySelectorAll('[data-logo]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('[data-logo]').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      state.frame.logo = btn.dataset.logo;
+    });
+  });
+
+  document.getElementById('btnApplyFrame').addEventListener('click', ()=>{
+    applyFrameToStrip();
+    showScreen('screen-review');
+  });
+
+  function applyFrameToStrip(){
+    const area = document.getElementById('printArea');
+    
+    // Clear all content
+    area.innerHTML = '';
+    
+    // Create frame wrapper
+    const frameOuter = document.createElement('div');
+    frameOuter.style.cssText = `background:${state.frame.color}; padding:20px; border-radius:4px; box-shadow: 0 20px 40px rgba(0,0,0,0.45);`;
+    
+    const frameInner = document.createElement('div');
+    frameInner.style.cssText = 'position:relative;';
+    
+    // Strip photos wrapper
+    const photoWrap = document.createElement('div');
+    photoWrap.style.cssText = 'background:#000; padding:4px; border-radius:2px; position:relative;';
+    
+    // Add all shots
+    state.shots.forEach(src=>{
+      const img = document.createElement('img');
+      img.src = src;
+      img.className = 'strip-photo';
+      img.style.cssText = 'border: 3px solid #fff; margin-bottom:10px; width:100%; display:block;';
+      photoWrap.appendChild(img);
+    });
+    
+    // Remove margin from last photo
+    if (photoWrap.lastChild) {
+      photoWrap.lastChild.style.marginBottom = '0';
+    }
+    
+    frameInner.appendChild(photoWrap);
+    
+    // Footer text
+    const footer = document.createElement('div');
+    footer.style.cssText = 'text-align:center; margin-top:14px; color:#fff; font-family:var(--font-display); letter-spacing:0.05em;';
+    footer.innerHTML = `
+      <div style="font-size:16px; font-weight:600;">${state.frame.eventName}</div>
+      <div style="font-size:12px; margin-top:4px; opacity:0.9;">${state.frame.eventDesc}</div>
+    `;
+    frameInner.appendChild(footer);
+    
+    // ĐOẠN HOÀN THIỆN: Khối hiển thị Năm và 2 Logo ở dưới cùng
+    const bottomSec = document.createElement('div');
+    bottomSec.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-end; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.2);';
+    
+    let logoHTML = '';
+   if (state.frame.logo === 'life') {
+      logoHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <!-- Tăng height lên 60px hoặc tùy ý bạn -->
+         
+          <img src="logo-saov.png.png" style="height:60px; width:auto; object-fit:contain;" alt="SaoV">
+        </div>
+      `;
+    }
+
+    bottomSec.innerHTML = `
+      <div style="font-size:13px; font-weight:700; color:#fff; font-family:var(--font-mono);">${state.frame.eventYear}</div>
+      ${logoHTML}
+    `;
+
+    frameInner.appendChild(bottomSec);
+    frameOuter.appendChild(frameInner);
+    area.appendChild(frameOuter);
+  }
+
+  // ---- CÁC NÚT TƯƠNG TÁC BƯỚC CUỐI ĐƯỢC HOÀN THIỆN ----
+  document.getElementById('btnPrint').addEventListener('click', () => { 
+    window.print(); 
+  });
+
+  document.getElementById('btnDownload').addEventListener('click', () => {
+    const frameToDownload = document.getElementById('printArea');
+    html2canvas(frameToDownload, { scale: 2, backgroundColor: null }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = 'cabina-photobooth-strip.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  });
+
+  document.getElementById('btnEditFrame').addEventListener('click', () => {
+    showScreen('screen-frame');
+  });
+
+  document.getElementById('btnRetake').addEventListener('click', () => {
+    state.shots = [];
+    document.getElementById('printArea').innerHTML = '';
+    showScreen('screen-start');
+    document.getElementById('btnStart').click();
+  });
+
+})();
+</script>
+</body>
+</html>
