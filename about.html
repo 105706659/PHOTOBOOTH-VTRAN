@@ -44,11 +44,15 @@
             <div class="feature-chip">📥 Tải &amp; in ngay</div>
           </div>
 
-          <div class="field-label">Số khung ảnh</div>
-          <div class="segmented" id="shotModes">
-            <button class="seg-btn on" data-shots="3">3</button>
-            <button class="seg-btn" data-shots="4">4</button>
-          </div>
+          <div class="field-label">Camera</div>
+          <select class="camera-select" id="cameraSelect">
+            <option value="">Camera mặc định của trình duyệt</option>
+          </select>
+
+          <label class="flip-toggle">
+            <input type="checkbox" id="flipCaptureToggle">
+            Lật ảnh khi chụp (bật nếu dùng Canon EOS Webcam Utility — ảnh lưu ra bị ngược)
+          </label>
 
           <button class="btn btn-white" id="btnStart">📷 Bắt đầu chụp ảnh →</button>
         </div>
@@ -66,7 +70,7 @@
   <section class="screen" id="screen-capture">
     <div class="panel">
       <div class="panel-title" style="font-size:20px;">Đang chụp ảnh</div>
-      <div class="panel-sub" style="margin-bottom:14px;">Tạo dáng và bấm chụp khi sẵn sàng</div>
+      <div class="panel-sub" style="margin-bottom:14px;">Tạo dáng sẵn sàng — máy sẽ tự đếm ngược và chụp liên tiếp</div>
 
       <div class="stage-wrap" id="stage">
         <video id="video" autoplay playsinline muted></video>
@@ -91,7 +95,6 @@
       </div>
 
       <div class="btn-stack" style="margin-top:0;">
-        <button class="btn btn-white" id="btnCapture">📸 Chụp ngay</button>
         <button class="btn btn-outline" id="btnCancel">Thoát</button>
       </div>
     </div>
@@ -154,7 +157,7 @@
     </div>
   </section>
 
-  <footer>© 2026 PHOTOBOOTH SAOV · Sao Việt x Swinburne Life · DESIGN BY VIETTRAN · [build: width-locked-5cm-noCrop]</footer>
+  <footer>© 2026 PHOTOBOOTH SAOV · Sao Việt x Swinburne Life · DESIGN BY VTRAN · [build: width-locked-5cm-noCrop]</footer>
 </div>
 
 <!-- Printing now happens in a separate pop-up window (see btnPrint handler
